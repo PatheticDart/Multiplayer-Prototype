@@ -6,13 +6,18 @@ public class NetworkPlayerController : NetworkBehaviour
     [SerializeField] float moveSpeed = 5f;
     [SerializeField] float gravity = -9.8f;
     [SerializeField] float groundedGravity = -2f;
+    [SerializeField] float lookSensitivity = 100f;
 
     private CharacterController controller;
     private float verticalVelocity;
+    private float xRotation = 0f; // Stores vertical look for the camera
+
+    private Camera mainCam;
 
     private void Awake()
     {
         controller = GetComponent<CharacterController>();
+        mainCam = Camera.main; // Cache the main camera reference
     }
 
     // Update is called once per frame
@@ -44,6 +49,14 @@ public class NetworkPlayerController : NetworkBehaviour
 
     private void MovePlayer(Vector2 movementInput)
     {
+        // 1. Snaps the player's rotation to the Camera's horizontal look
+        if (Camera.main != null)
+        {
+            float cameraRotationY = Camera.main.transform.eulerAngles.y;
+            transform.rotation = Quaternion.Euler(0, cameraRotationY, 0);
+        }
+
+        // 2. Gravity logic
         if (controller.isGrounded && verticalVelocity < 0f)
         {
             verticalVelocity = groundedGravity;
@@ -52,11 +65,11 @@ public class NetworkPlayerController : NetworkBehaviour
         {
             verticalVelocity += gravity * Time.deltaTime;
         }
-        Vector3 moveDirection = new Vector3(movementInput.x, 0f, movementInput.y).normalized;
-        Vector3 horizontalMovement = moveDirection * moveSpeed;
-        Vector3 verticalMovement = Vector3.up * verticalVelocity;
-        Vector3 finalMovement = horizontalMovement + verticalMovement;
 
-        controller.Move(finalMovement * Time.deltaTime);
+        // 3. Move relative to this new rotation
+        Vector3 moveDirection = (transform.forward * movementInput.y) + (transform.right * movementInput.x);
+        if (moveDirection.magnitude > 1) moveDirection.Normalize();
+
+        controller.Move((moveDirection * moveSpeed + Vector3.up * verticalVelocity) * Time.deltaTime);
     }
 }
