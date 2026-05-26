@@ -6,6 +6,8 @@ public class NetworkPlayerController : NetworkBehaviour
     [SerializeField] float moveSpeed = 5f;
     [SerializeField] float gravity = -9.8f;
     [SerializeField] float groundedGravity = -2f;
+    [SerializeField] float jumpHeight = 2f;
+    [SerializeField] KeyCode jumpKey = KeyCode.Space;
     [SerializeField] float lookSensitivity = 100f;
 
     private CharacterController controller;
@@ -17,7 +19,6 @@ public class NetworkPlayerController : NetworkBehaviour
     private void Awake()
     {
         controller = GetComponent<CharacterController>();
-        mainCam = Camera.main; // Cache the main camera reference
     }
 
     // Update is called once per frame
@@ -32,22 +33,26 @@ public class NetworkPlayerController : NetworkBehaviour
         float verticalInput = Input.GetAxis("Vertical");
         Vector2 inputDirection = new Vector2(horizontalInput, verticalInput);
 
+        // Capture jump input on the local client
+        bool jumpRequestedThisFrame = Input.GetKeyDown(jumpKey);
+
         if (IsServer)
         {
-            MovePlayer(inputDirection);
+            MovePlayer(inputDirection, jumpRequestedThisFrame);
         }
         else
         {
-            MovePlayerRPC(inputDirection);
+            MovePlayerRPC(inputDirection, jumpRequestedThisFrame);
         }
     }
+
     [Rpc(SendTo.Server)] // Marks the next method as an RPC that runs on the server.
-    private void MovePlayerRPC(Vector2 movementInput)
+    private void MovePlayerRPC(Vector2 movementInput, bool jumpRequested)
     {
-        MovePlayer(movementInput);
+        MovePlayer(movementInput, jumpRequested);
     }
 
-    private void MovePlayer(Vector2 movementInput)
+    private void MovePlayer(Vector2 movementInput, bool jumpRequested)
     {
         // 1. Snaps the player's rotation to the Camera's horizontal look
         if (Camera.main != null)
@@ -57,9 +62,17 @@ public class NetworkPlayerController : NetworkBehaviour
         }
 
         // 2. Gravity logic
-        if (controller.isGrounded && verticalVelocity < 0f)
+        if (controller.isGrounded)
         {
-            verticalVelocity = groundedGravity;
+            if (verticalVelocity < 0f)
+            {
+                verticalVelocity = groundedGravity;
+            }
+            if (jumpRequested)
+            {
+                Debug.Log("Jumping!");
+                verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
+            }
         }
         else
         {
